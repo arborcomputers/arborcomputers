@@ -1,0 +1,9 @@
+{
+  "name": "arborcomputers",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/serve.mjs 3000"
+  },
+  "engines": { "node": ">=20" }
+}
