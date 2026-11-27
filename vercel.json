@@ -52,6 +52,10 @@
     {
       "source": "/api/forms/",
       "destination": "/api/forms"
+    },
+    {
+      "source": "/api/remote-support/",
+      "destination": "/api/remote-support"
     }
   ],
   "headers": [
