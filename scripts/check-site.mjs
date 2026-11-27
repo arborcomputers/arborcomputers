@@ -25,6 +25,7 @@ if (!page) {
   const handler = scripts.map((s) => read(`public${s}`) || '').find((js) => js.includes('/api/remote-support/'));
   if (!handler) problems.push('no script on the remote support page sends codes to /api/remote-support/');
   else if (!handler.includes('HTMLFormElement.prototype.submit')) problems.push('remote support script lost its direct-to-StartControl fallback');
+  else if (!handler.includes('sc-backup')) problems.push('remote support script lost the backup StartControl link');
 }
 
 const config = JSON.parse(read('vercel.json'));

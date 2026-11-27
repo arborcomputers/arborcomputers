@@ -15,7 +15,8 @@ from the live site: `public/` holds the site exactly as the last production buil
 | `api/forms.mjs` | Handles the contact, consultation and service-page forms and emails them |
 | `api/remote-support.mjs` | Remote Support page: takes the technician's code and fetches the StartControl agent |
 | `scripts/check-site.mjs` | Runs before every deploy; stops the deploy if remote support or the forms are broken |
-| `.github/workflows/remote-support-monitor.yml` | Checks the live remote support download hourly; GitHub emails if it fails |
+| `scripts/monitor-remote-support.mjs` | Browser test of the remote support page (used by the monitor) |
+| `.github/workflows/remote-support-monitor.yml` | Checks the live remote support download every hour; opens a GitHub issue if it breaks |
 | `vercel.json` | Hosting settings: security headers, image resizing, trailing slashes |
 | `scripts/` | Helpers for previewing and for edits |
 
@@ -46,10 +47,13 @@ Customers enter their technician's code on `/remote-support/`. The page sends it
 `api/remote-support.mjs`, which gets the agent from StartControl (`startcontrol.com/pin.php`).
 If that helper ever fails, the page sends the customer straight to StartControl's own
 download page instead, so they can still connect.
+The page also always shows a backup link to the official StartControl portal.
 
 Don't delete or rename `api/remote-support.mjs`: in November 2026 it went missing in the site
 rebuild and customers couldn't download the agent. `scripts/check-site.mjs` now blocks any
-deploy where it's missing, and the hourly monitor flags it on the live site.
+deploy where it's missing, and the hourly monitor opens a GitHub issue titled
+"Remote support download is broken" if the live download stops working (it closes
+itself once it's fixed).
 
 If customers can't download: send them to https://startcontrol.com/pin.php and check
 Vercel's logs for `remote-support:` lines.
