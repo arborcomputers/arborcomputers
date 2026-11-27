@@ -27,7 +27,7 @@ jobs:
     env:
       SITE: https://arborcomputers.com
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Wait for the new deploy (push only)
         if: github.event_name == 'push'
