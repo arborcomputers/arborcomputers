@@ -1,0 +1,66 @@
+# Weekly Google Lighthouse test of the live site (mobile, the same engine as
+# PageSpeed Insights). Results are in the run's Summary tab. If a page's SEO
+# score drops below 90, or speed below 70, the run fails and opens an issue.
+name: Site speed and SEO
+
+on:
+  schedule:
+    - cron: '41 9 * * 1' # Mondays, 5:41am Eastern
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['public/**', 'vercel.json']
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Wait for the new deploy (push only)
+        if: github.event_name == 'push'
+        run: sleep 120
+      - name: Run Lighthouse on key pages
+        run: |
+          set -u
+          pages="/ /dental-it-services-and-solutions/ /it-support-for-business/ /managed-it-services/ /pc-mac-repair/ /cyber-security/ /custom-pcs/ /remote-support/ /contact/ /service-areas/canton/ /blog/managed-it-vs-break-fix-for-business/"
+          npm install --no-save --no-audit --no-fund lighthouse@12.2.1 >/dev/null
+          {
+            echo "## Lighthouse (mobile) for https://arborcomputers.com"
+            echo
+            echo "| Page | Speed | SEO | Accessibility | Best practices | LCP | CLS | TBT |"
+            echo "|---|---|---|---|---|---|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+          : > problems.txt
+          for p in $pages; do
+            best=""
+            for try in 1 2; do # take the better of two runs; single runs vary by a few points
+              npx lighthouse "https://arborcomputers.com$p" --quiet --chrome-flags="--headless=new --no-sandbox" \
+                --only-categories=performance,seo,accessibility,best-practices --output=json --output-path=lh.json >/dev/null 2>&1 || continue
+              s=$(node -e 'const r=require("./lh.json");console.log(Math.round(r.categories.performance.score*100))')
+              if [ -z "$best" ] || [ "$s" -gt "$(node -e 'const r=require("./best.json");console.log(Math.round(r.categories.performance.score*100))')" ]; then cp lh.json best.json; best=$s; fi
+            done
+            [ -n "$best" ] || { echo "| $p | failed to load | | | | | | |" >> "$GITHUB_STEP_SUMMARY"; echo "$p did not load" >> problems.txt; continue; }
+            node -e '
+              const r=require("./best.json"), c=r.categories, a=r.audits, s=k=>Math.round(c[k].score*100), p=process.argv[1];
+              console.log(`| ${p} | ${s("performance")} | ${s("seo")} | ${s("accessibility")} | ${s("best-practices")} | ${a["largest-contentful-paint"].displayValue} | ${a["cumulative-layout-shift"].displayValue} | ${a["total-blocking-time"].displayValue} |`);
+              const fs=require("fs");
+              if (s("seo")<90) fs.appendFileSync("problems.txt", `${p}: SEO score ${s("seo")}\n`);
+              if (s("performance")<70) fs.appendFileSync("problems.txt", `${p}: speed score ${s("performance")}\n`);
+            ' "$p" >> "$GITHUB_STEP_SUMMARY"
+          done
+          if [ -s problems.txt ]; then { echo; echo "**Problems:**"; sed 's/^/- /' problems.txt; } >> "$GITHUB_STEP_SUMMARY"; exit 1; fi
+
+      - name: Open an issue (scores dropped)
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Website speed or SEO score dropped"
+          run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          num=$(gh issue list -R "${{ github.repository }}" --state open --search "\"$title\" in:title" --json number --jq '.[0].number')
+          body=$(printf 'Lighthouse found pages below target (SEO 90, speed 70):\n\n%s\n\nFull results: %s' "$(cat problems.txt 2>/dev/null)" "$run_url")
+          if [ -n "$num" ]; then gh issue comment "$num" -R "${{ github.repository }}" --body "$body"; else gh issue create -R "${{ github.repository }}" --title "$title" --body "$body"; fi
