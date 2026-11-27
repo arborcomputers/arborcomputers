@@ -83,10 +83,11 @@ export async function POST(request) {
   const link = res.ok ? linkIn(html, res.url || STARTCONTROL) : null;
   if (link && FILE_LINK.test(new URL(link).pathname + new URL(link).search)) return json(200, { ok: true, url: link });
 
-  // Anything else is StartControl's error page (wrong or expired code) or an outage.
+  // Anything else (a wrong or expired code, an outage, or a reply we don't recognise):
+  // answer 502 so the page sends the customer straight to StartControl's own page,
+  // which shows its own message or starts the download.
   console.error('remote-support: no download from StartControl', res.status, res.url, html.replace(/\s+/g, ' ').slice(0, 500));
-  if (!res.ok) return fail(502, `The remote support service isn't responding right now. Please call ${PHONE}.`);
-  return fail(400, `That code wasn't accepted. Codes expire quickly, so ask your technician for a new one or call ${PHONE}.`);
+  return fail(502, `Opening StartControl directly. If nothing downloads, call ${PHONE}.`);
 }
 
 export function GET() {
