@@ -55,6 +55,14 @@ jobs:
           code=$(get -L https://startcontrol.com/pin.php)
           [ "$code" = 200 ] || fail "StartControl's portal (startcontrol.com/pin.php) returns $code"
 
+          # Mac "Calling Card" button links straight to StartControl's applet file: make sure it's still there.
+          applet=$(echo "$page" | grep -oE 'https://[^"]+mac[^"]*\.zip' | head -1)
+          if [ -z "$applet" ]; then fail "The Mac applet download link is missing from the page"; else
+            read -r code type size <<<"$(curl -s -L -o /dev/null -r 0-1023 --retry 3 --max-time 60 -w '%{http_code} %{content_type} %{size_download}' "$applet")"
+            { [ "$code" = 200 ] || [ "$code" = 206 ]; } && [ "${size:-0}" -gt 0 ] && ! echo "$type" | grep -qi html \
+              || fail "Mac applet $applet returns $code ($type)"
+          fi
+
           [ ! -s problems.txt ] || exit 1
           echo "Site and helper OK."
 
