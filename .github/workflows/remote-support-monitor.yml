@@ -1,0 +1,43 @@
+# Checks the live Remote Support download every hour during the day and after
+# every push to main. If it fails, GitHub emails the repo's admins about the
+# failed run, so a broken download gets noticed before a customer calls.
+name: Remote support monitor
+
+on:
+  schedule:
+    - cron: '17 11-23 * * *' # hourly, 7am-7pm Eastern
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Wait for the new deploy (push only)
+        if: github.event_name == 'push'
+        run: sleep 120
+      - name: Check live site
+        run: |
+          set -u
+          site=https://arborcomputers.com
+          fail() { echo "::error::$1"; exit 1; }
+
+          page=$(curl -fsSL --retry 3 "$site/remote-support/") || fail "Remote support page is down"
+          echo "$page" | grep -q 'startcontrol.com/pin.php' || fail "Remote support page lost the StartControl form"
+
+          for js in $(echo "$page" | grep -oE '/_next/static/[^"\\]+\.js' | sort -u); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$site$js")
+            [ "$code" = 200 ] || fail "Script $js returns $code"
+          done
+
+          # The helper only accepts POST; a 405 here means it exists. 404 means customers can't download.
+          code=$(curl -s -o /dev/null -w '%{http_code}' --retry 3 "$site/api/remote-support/")
+          [ "$code" = 405 ] || fail "Download helper /api/remote-support/ returns $code (expected 405)"
+
+          # An empty POST must come back as our JSON error, not a 404 or crash.
+          body=$(curl -s -X POST --retry 3 "$site/api/remote-support/" -H 'content-type: application/x-www-form-urlencoded' --data '')
+          echo "$body" | grep -q '"ok":false' || fail "Download helper gave an unexpected reply: $body"
+
+          echo "Remote support download is working."
