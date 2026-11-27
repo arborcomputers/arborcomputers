@@ -52,6 +52,7 @@ jobs:
               if (s("performance")<70) fs.appendFileSync("problems.txt", `${p}: speed score ${s("performance")}\n`);
             ' "$p" >> "$GITHUB_STEP_SUMMARY"
           done
+          cat "$GITHUB_STEP_SUMMARY" # also in the log
           if [ -s problems.txt ]; then { echo; echo "**Problems:**"; sed 's/^/- /' problems.txt; } >> "$GITHUB_STEP_SUMMARY"; exit 1; fi
 
       - name: Open an issue (scores dropped)
